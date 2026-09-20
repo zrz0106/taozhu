@@ -131,10 +131,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
           stringRedisTemplate.opsForHash().putAll(tokenKey,map);
           stringRedisTemplate.expire(tokenKey,30,TimeUnit.MINUTES);
 
-          Long ttl = stringRedisTemplate.getExpire(tokenKey,TimeUnit.MINUTES);
-          if(ttl != null && ttl >0 && ttl <=600){
-              stringRedisTemplate.expire(tokenKey,RedisConstants.LOGIN_USER_TTL, TimeUnit.MINUTES);
-          }
+
           //8.返回token
 //        return Result.ok(token);
         return Result.ok(token);
