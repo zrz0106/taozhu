@@ -4,7 +4,7 @@
     rabbitmq:
       listener:
         simple:
-          auto-startup: true
+          auto-startup: false
           acknowledge-mode: manual
           concurrency: 5
           prefetch: 10
@@ -15,10 +15,10 @@
     application:
       name: hmdp
     datasource:
-      driver-class-name: com.mysql.jdbc.Driver
-      url: jdbc:mysql://127.0.0.1:3306/dingping?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      url: jdbc:mysql://127.0.0.1:3306/dingping?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&characterEncoding=utf8
       username: root
-      password: 290390
+      password: Mysql@2026
     redis:
       host: 127.0.0.1
       port: 6379
