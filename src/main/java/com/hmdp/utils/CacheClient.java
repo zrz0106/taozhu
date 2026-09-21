@@ -7,6 +7,7 @@ import cn.hutool.json.JSONUtil;
 import com.hmdp.entity.Shop;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -24,8 +25,9 @@ public class CacheClient {
     private final StringRedisTemplate stringRedisTemplate;
 
 
-    public CacheClient(StringRedisTemplate stringRedisTemplate) {
+    public CacheClient(StringRedisTemplate stringRedisTemplate, RedissonClient redissonClient) {
         this.stringRedisTemplate = stringRedisTemplate;
+        this.redissonClient = redissonClient;
     }
 
 
@@ -123,6 +125,8 @@ public class CacheClient {
         return shop;
 
     }
+
+    private final RedissonClient redissonClient;
     public <R,ID> R queryWithMutex(String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallback,
                                    Long time, TimeUnit unit) throws InterruptedException{
         String key = keyPrefix + id;
@@ -137,13 +141,22 @@ public class CacheClient {
         boolean islock = tryLock(lockKey);
 
 
-
-
-        if(!islock){
-            Thread.sleep(50);
-            return queryWithMutex(keyPrefix,id,type,dbFallback,time,unit);
-        }
+        RLock lock = redissonClient.getLock(lockKey);
+        final int MAX_RETRY = 5;
+        int retry = 0;
         try{
+            while(retry < MAX_RETRY){
+                islock = lock.tryLock(3, TimeUnit.SECONDS);
+                if(islock){
+                    break;
+                }
+                retry++;
+                log.warn("抢锁失败，准备重试");
+                Thread.sleep(100);
+            }
+            if(!islock){
+                return dbFallback.apply(id);
+            }
             json = stringRedisTemplate.opsForValue().get(key);
             if(StrUtil.isNotBlank(json)){
                 return JSONUtil.toBean(json,type);
@@ -155,8 +168,13 @@ public class CacheClient {
             }
             this.set(key,r,time,unit);
             return r;
-        }finally{
-            unLock(lockKey);
+        }catch(InterruptedException e){
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }finally {
+            if(islock && lock.isHeldByCurrentThread()){
+                lock.unlock();
+            }
         }
     }
 
