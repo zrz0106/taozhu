@@ -135,8 +135,8 @@ public class CacheClient {
         }
         String lockKey=RedisConstants.LOCK_SHOP_KEY+id;
         boolean islock = tryLock(lockKey);
-        int retryConut = 0;
-        final int MAX_RETRY = 5;
+
+
 
 
         if(!islock){
