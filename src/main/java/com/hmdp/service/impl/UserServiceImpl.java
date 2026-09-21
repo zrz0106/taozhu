@@ -90,21 +90,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         }
         String cacheCode = stringRedisTemplate.opsForValue().getAndDelete(LOGIN_CODE_KEY + phone);
         if(cacheCode == null || !cacheCode.equals(code)){
-            return Result.fail("m");
+            return Result.fail("验证码不一致，请重新输入");
         }
-//        //1.校验手机号
-//        if(RegexUtils.isPhoneInvalid(phone)) {
-//            //2.不符合，返回错误
-//            return Result.fail("手机号格式错误");
-//        }
-//        //3.校验验证码
-//        String cacheCode = stringRedisTemplate.opsForValue().get(RedisConstants.LOGIN_CODE_KEY+phone);
-//        if(cacheCode==null||!cacheCode.equals(code)){
-//           return Result.fail("验证码不一致，请重新输入");
-//       }
 //
-//        //4.一致，根据手机号查询用户
-//        User user = query().eq("phone",phone).one();
         User user = query().eq("phone",phone).one();
 //
 //        //5.判断用户是否存在

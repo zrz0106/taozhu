@@ -6,6 +6,7 @@ import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.hmdp.entity.Shop;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -13,7 +14,9 @@ import java.time.LocalDateTime;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
+
 
 @Slf4j
 @Component
@@ -120,6 +123,45 @@ public class CacheClient {
         return shop;
 
     }
+    public <R,ID> R queryWithMutex(String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallback,
+                                   Long time, TimeUnit unit) throws InterruptedException{
+        String key = keyPrefix + id;
+        String json = stringRedisTemplate.opsForValue().get(key);
+        if(StrUtil.isNotBlank(json)){
+            return JSONUtil.toBean(json,type);
+        }
+        if(json != null){
+            return null;
+        }
+        String lockKey=RedisConstants.LOCK_SHOP_KEY+id;
+        boolean islock = tryLock(lockKey);
+        int retryConut = 0;
+        final int MAX_RETRY = 5;
+
+
+        if(!islock){
+            Thread.sleep(50);
+            return queryWithMutex(keyPrefix,id,type,dbFallback,time,unit);
+        }
+        try{
+            json = stringRedisTemplate.opsForValue().get(key);
+            if(StrUtil.isNotBlank(json)){
+                return JSONUtil.toBean(json,type);
+            }
+            R r = dbFallback.apply(id);
+            if(r == null){
+                stringRedisTemplate.opsForValue().set(key,"",RedisConstants.CACHE_NULL_TTL,TimeUnit.MINUTES);
+                return null;
+            }
+            this.set(key,r,time,unit);
+            return r;
+        }finally{
+            unLock(lockKey);
+        }
+    }
+
+
+
     /**
      * 创建锁
      * @param key

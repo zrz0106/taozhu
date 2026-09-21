@@ -1,5 +1,6 @@
 package com.hmdp.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -28,6 +29,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import static com.hmdp.utils.RedisConstants.*;
+import static jdk.nashorn.internal.runtime.Debug.id;
 
 
 @Service
@@ -49,6 +51,23 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         }
         return Result.ok(shop);
     }
+    public Result queryById2(Long id){
+        String shopjson = stringRedisTemplate.opsForValue().get(CACHE_SHOP_KEY + id);
+        if(StrUtil.isBlank(shopjson)){
+            return Result.ok(JSONUtil.toBean(shopjson,Shop.class));
+        }
+        Shop shop = getById(id);
+        if (shopjson == null){
+            return Result.fail("店铺信息不存在");
+        }
+        if(shop == null){
+            stringRedisTemplate.opsForValue().set(CACHE_SHOP_KEY + id,"",2,TimeUnit.MINUTES);
+            return Result.fail("店铺信息不存在");
+        }
+        stringRedisTemplate.opsForValue().set(CACHE_SHOP_KEY + id,JSONUtil.toJsonStr(shop),CACHE_SHOP_TTL, TimeUnit.MINUTES);
+        return Result.ok(shop);
+    }
+
 
     public void saveShop2Redis(Long id, Long expireSeconds) {
         // 1.查询店铺数据
