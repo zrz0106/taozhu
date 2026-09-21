@@ -34,15 +34,19 @@ public class ShopTypeServiceImpl extends ServiceImpl<ShopTypeMapper, ShopType> i
             return Result.ok(shopTypes);
         }
         List<ShopType> shopTypes = query().orderByAsc("sort").list();
-        if(shopTypes==null||shopTypes.isEmpty()){
+        if (shopTypes == null || shopTypes.isEmpty()) {
             return Result.fail("没有分类数据");
         }
         for (ShopType shopType : shopTypes) {
             String json = JSONUtil.toJsonStr(shopType);
-            stringRedisTemplate.opsForList().rightPush(RedisConstants.SHOP_TYPE_KEY,json);
+            stringRedisTemplate.opsForList().rightPush(RedisConstants.SHOP_TYPE_KEY, json);
         }
         return Result.ok(shopTypes);
         //1.先从redis缓存看是否存在
+        //String shoptypejson = stringredistemplate.opsforvalue().get(RedisConstants.shoptypekey);
+        //if(strutil.isNotBlank(shoptypejson){
+        //return Result.ok(JSONUtil.toList(shopJson,shopType.class):
+        //}
         // String shopTypeJson = stringRedisTemplate.opsForValue().get(RedisConstants.SHOP_TYPE_KEY);
 //        if(StrUtil.isNotBlank(shopTypeJson)) {
 //            //2.如果存在，返回分类信息
