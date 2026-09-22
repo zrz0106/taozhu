@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.hmdp.entity.Shop;
+import jodd.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
@@ -12,9 +13,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 
@@ -73,7 +72,15 @@ public class CacheClient {
     }
 
 
-    private static final ExecutorService CACHE_REBUILD_EXECUTOR= Executors.newFixedThreadPool(10);
+    private static final ExecutorService CACHE_REBUILD_EXECUTOR= new ThreadPoolExecutor(4,
+            8,
+            60L,
+            TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(200),
+            new ThreadFactoryBuilder()
+                    .setNameFormat("cache-rebuild-%d")
+                    .get(),
+            new ThreadPoolExecutor.CallerRunsPolicy());
     public <R,ID> R queryWithLogicalExpire(
             String keyPrefix,ID id,Class<R> type,Function<ID,R> dbFallback,Long time,TimeUnit unit){
         String key=keyPrefix+id;
@@ -95,15 +102,15 @@ public class CacheClient {
         }
         //6.1.获取互斥锁
         String lockKey=RedisConstants.LOCK_SHOP_KEY+id;
-        boolean isloock = tryLock(lockKey);
+        boolean islock = tryLock(lockKey);
         //6.2.判断是否获取锁成功
-        if(isloock) {
+        if(islock) {
             CACHE_REBUILD_EXECUTOR.submit(() -> {
                 try {
                     R r = dbFallback.apply(id);
                     this.setWithLogicalExpire(key,r,time,unit);
                 } catch (Exception e) {
-                    throw new RuntimeException(e);
+                    log.error(e.getMessage(),e);
                 } finally {
                     unLock(lockKey);
                 }
@@ -123,6 +130,7 @@ public class CacheClient {
 
 
     private final RedissonClient redissonClient;
+
     public <R,ID> R queryWithMutex(String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallback,
                                    Long time, TimeUnit unit) throws InterruptedException{
         String key = keyPrefix + id;
@@ -141,7 +149,7 @@ public class CacheClient {
         int retry = 0;
         try{
             while(retry < MAX_RETRY){
-                islock = lock.tryLock(3, TimeUnit.SECONDS);
+                islock = lock.tryLock(1, TimeUnit.SECONDS);
                 if(islock){
                     break;
                 }
