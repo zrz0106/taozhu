@@ -10,6 +10,7 @@ import com.hmdp.mapper.ShopMapper;
 import com.hmdp.service.IShopService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.CacheClient;
+import com.hmdp.utils.RedisConstants;
 import com.hmdp.utils.RedisData;
 import com.hmdp.utils.SystemConstants;
 import org.springframework.data.geo.Distance;
@@ -83,6 +84,10 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     @Override
     @Transactional
     public Result update(Shop shop) {
+        Long id = shop.getId();
+        if(id == null){
+            return Result.fail("id不能为空");
+        }
         updateById(shop);
 
         // 注册一个回调，事务成功提交后才执行
@@ -90,7 +95,12 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
                 new TransactionSynchronization() {
                     @Override
                     public void afterCommit() {
-                        stringRedisTemplate.delete("cache:shop:" + shop.getId());
+                        // ④ 必须 try-catch，两个原因见下面
+                        try {
+                            stringRedisTemplate.delete(RedisConstants.CACHE_SHOP_KEY + id);
+                        } catch (Exception e) {
+                            log.error("删除缓存失败, shopId={}", e);
+                        }
                     }
                 });
         return Result.ok();

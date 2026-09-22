@@ -4,7 +4,7 @@ import cn.hutool.core.util.BooleanUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
-import com.hmdp.entity.Shop;
+
 import jodd.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.concurrent.*;
-import java.util.concurrent.locks.Lock;
+
 import java.util.function.Function;
 
 
@@ -108,7 +108,11 @@ public class CacheClient {
             CACHE_REBUILD_EXECUTOR.submit(() -> {
                 try {
                     R r = dbFallback.apply(id);
-                    this.setWithLogicalExpire(key,r,time,unit);
+                    if (r == null) {
+                        stringRedisTemplate.delete(key);      // 数据没了，缓存也删掉
+                        return;
+                    }
+                    this.setWithLogicalExpire(key, r, time, unit);
                 } catch (Exception e) {
                     log.error(e.getMessage(),e);
                 } finally {
@@ -117,17 +121,7 @@ public class CacheClient {
             });
         }
         return shop;
-    }//  6.3.成功，开启独立线程实现缓存重建
-
-                   //查询数据库
-
-                    //写入redis
-
-                    //释放锁：必须释放 lockKey，而非缓存键 key
-
-
-        //6.4.返回过期的商铺信息
-
+    }
 
     private final RedissonClient redissonClient;
 
@@ -182,20 +176,13 @@ public class CacheClient {
 
 
 
-    /**
-     * 创建锁
-     * @param key
-     * @return
-     */
+
     private boolean tryLock(String key){
         Boolean flag = stringRedisTemplate.opsForValue().setIfAbsent(key, "1", 10, TimeUnit.SECONDS);
         return BooleanUtil.isTrue(flag);
     }
 
-    /**
-     * 封闭锁
-     * @param key
-     */
+
     private void unLock(String key){
         stringRedisTemplate.delete(key);
     }
