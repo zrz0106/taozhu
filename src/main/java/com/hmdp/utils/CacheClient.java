@@ -68,10 +68,8 @@ public class CacheClient {
             return null;
         }
         //7.存在，写入redis，返回商铺信息
-       this.set(key,r,time,unit);
-
+        this.set(key,r,time,unit);
         return r;
-
     }
 
 
@@ -82,10 +80,8 @@ public class CacheClient {
         //1.尝试从Redis查询商铺缓存
         String json = stringRedisTemplate.opsForValue().get(key);
         //2.判断缓存是否存在
-        if(StrUtil.isBlank(json)) { //判断字符串既不为null，也不是空字符串(""),且也不是空白字符
-            //3.不存在，返回商铺信息
+        if(StrUtil.isBlank(json)){
             return null;
-
         }
 
         //4.存在，将json反序列化为对象
@@ -97,34 +93,34 @@ public class CacheClient {
             //5.1.未过期，直接返回店铺信息
             return shop;
         }
-        //5.2.已过期，需要返回缓存重建
-        //6.缓存重建
         //6.1.获取互斥锁
         String lockKey=RedisConstants.LOCK_SHOP_KEY+id;
-        boolean isLock = tryLock(lockKey);
+        boolean isloock = tryLock(lockKey);
         //6.2.判断是否获取锁成功
-        if(isLock){
-            //  6.3.成功，开启独立线程实现缓存重建
-            CACHE_REBUILD_EXECUTOR.submit(()->{
+        if(isloock) {
+            CACHE_REBUILD_EXECUTOR.submit(() -> {
                 try {
-                   //查询数据库
-                    R r1= dbFallback.apply(id);
-                    //写入redis
-                    this.setWithLogicalExpire(key,r1,time,unit);
+                    R r = dbFallback.apply(id);
+                    this.setWithLogicalExpire(key,r,time,unit);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
-                }finally {
-                    //释放锁：必须释放 lockKey，而非缓存键 key
+                } finally {
                     unLock(lockKey);
                 }
             });
-
         }
+        return shop;
+    }//  6.3.成功，开启独立线程实现缓存重建
+
+                   //查询数据库
+
+                    //写入redis
+
+                    //释放锁：必须释放 lockKey，而非缓存键 key
+
 
         //6.4.返回过期的商铺信息
-        return shop;
 
-    }
 
     private final RedissonClient redissonClient;
     public <R,ID> R queryWithMutex(String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallback,
@@ -138,10 +134,9 @@ public class CacheClient {
             return null;
         }
         String lockKey=RedisConstants.LOCK_SHOP_KEY+id;
-        boolean islock = tryLock(lockKey);
-
-
         RLock lock = redissonClient.getLock(lockKey);
+        boolean islock = false;
+
         final int MAX_RETRY = 5;
         int retry = 0;
         try{
@@ -152,7 +147,6 @@ public class CacheClient {
                 }
                 retry++;
                 log.warn("抢锁失败，准备重试");
-                Thread.sleep(100);
             }
             if(!islock){
                 return dbFallback.apply(id);
