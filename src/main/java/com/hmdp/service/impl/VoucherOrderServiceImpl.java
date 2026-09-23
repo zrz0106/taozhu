@@ -3,6 +3,7 @@ package com.hmdp.service.impl;
 import com.hmdp.config.QueueConfig;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.SeckillVoucher;
+import com.hmdp.entity.Voucher;
 import com.hmdp.entity.VoucherOrder;
 import com.hmdp.mapper.VoucherOrderMapper;
 import com.hmdp.service.ISeckillVoucherService;
@@ -16,6 +17,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
@@ -42,6 +44,53 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+
+
+
+    @Transactional
+    public Result seckillvoucher(Long voucherId){
+        //查询优惠券
+        SeckillVoucher voucher = seckillVoucherService.getById(voucherId);
+        //判断秒杀活动是否开始
+        LocalDateTime beginTime = voucher.getBeginTime();
+        if(beginTime.isAfter(LocalDateTime.now())){
+            //尚未开始
+            return Result.fail("秒杀未开始");
+
+        }
+        //判断秒杀是否结束
+        LocalDateTime endTime = voucher.getEndTime();
+        if(endTime.isBefore(LocalDateTime.now())){
+            return Result.fail("秒杀已经结束");
+        }
+        //判断库存是否充足
+        Integer stock = voucher.getStock();
+        if(stock < 1){
+            return Result.fail("库存不足");
+        }
+        //扣减库存
+        boolean success = seckillVoucherService.update().setSql("stock = stock - 1").eq("voucher_id",voucherId).update();
+        if(!success){
+            return Result.fail("扣减库存失败");
+        }
+        //创建订单
+        VoucherOrder voucherOrder = new VoucherOrder();
+        //返回订单ID
+        Long orderid = redisIdWorker.nextId("order");
+        voucherOrder.setId(orderid);
+
+        Long userid = UserHolder.getUser().getId();
+        voucherOrder.setUserId(userid);
+
+        voucherOrder.setVoucherId(voucherId);
+        save(voucherOrder);
+
+        return  Result.ok(voucherId);
+    }
+
+
+
+
 
     /**
      * 秒杀校验脚本：判断库存、一人一单；通过后扣减 Redis 库存并记录下单人。
