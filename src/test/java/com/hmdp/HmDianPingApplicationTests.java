@@ -119,7 +119,7 @@ class HmDianPingApplicationTests {
                     startGun.await();                    // 等枪响
                     for (int i = 0; i < perThread; i++) {
                         long id = redisIdWorker.nextId("prefix");
-                        if (!ids.add(id)) {              // ←捕获重复
+                        if (!ids.add(id)) {              // 捕获重复
                             duplicates.add(id);
                         }
                     }
