@@ -145,7 +145,6 @@ public class CacheClient {
             islock = lock.tryLock(3, TimeUnit.SECONDS);
             if(!islock){
                 Thread.sleep(50);
-
                 log.warn("抢锁失败");
                 return dbFallback.apply(id);
             }
