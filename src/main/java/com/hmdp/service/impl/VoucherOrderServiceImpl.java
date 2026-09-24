@@ -56,7 +56,6 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if(beginTime.isAfter(LocalDateTime.now())){
             //尚未开始
             return Result.fail("秒杀未开始");
-
         }
         //判断秒杀是否结束
         LocalDateTime endTime = voucher.getEndTime();
@@ -69,9 +68,19 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             return Result.fail("库存不足");
         }
         //扣减库存
-        boolean success = seckillVoucherService.update().setSql("stock = stock - 1").eq("voucher_id",voucherId).update();
+        boolean success = seckillVoucherService.update()
+                .setSql("stock = stock - 1")
+                .eq("voucher_id",voucherId).gt("stock",0)
+                .update();
         if(!success){
             return Result.fail("扣减库存失败");
+        }
+        Long userid = UserHolder.getUser().getId();
+        //查询订单
+        Integer count = query().eq("user_id", userid).eq("voucher_id", voucherId).count();
+        //判断订单是否存在
+        if(count > 0){
+            return Result.fail("已经买过一次了");
         }
         //创建订单
         VoucherOrder voucherOrder = new VoucherOrder();
@@ -79,12 +88,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         Long orderid = redisIdWorker.nextId("order");
         voucherOrder.setId(orderid);
 
-        Long userid = UserHolder.getUser().getId();
         voucherOrder.setUserId(userid);
-
         voucherOrder.setVoucherId(voucherId);
         save(voucherOrder);
-
         return  Result.ok(voucherId);
     }
 
