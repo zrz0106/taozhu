@@ -12,6 +12,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
+import java.security.Key;
 import java.time.LocalDateTime;
 import java.util.concurrent.*;
 
@@ -81,6 +82,7 @@ public class CacheClient {
                     .setNameFormat("cache-rebuild-%d")
                     .get(),
             new ThreadPoolExecutor.CallerRunsPolicy());
+
     public <R,ID> R queryWithLogicalExpire(
             String keyPrefix,ID id,Class<R> type,Function<ID,R> dbFallback,Long time,TimeUnit unit){
         String key=keyPrefix+id;
@@ -126,7 +128,7 @@ public class CacheClient {
     private final RedissonClient redissonClient;
 
     public <R,ID> R queryWithMutex(String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallback,
-                                   Long time, TimeUnit unit) throws InterruptedException{
+                                   Long time, TimeUnit unit){
         String key = keyPrefix + id;
         String json = stringRedisTemplate.opsForValue().get(key);
         if(StrUtil.isNotBlank(json)){
@@ -138,22 +140,16 @@ public class CacheClient {
         String lockKey=RedisConstants.LOCK_SHOP_KEY+id;
         RLock lock = redissonClient.getLock(lockKey);
         boolean islock = false;
-
-        final int MAX_RETRY = 5;
-        int retry = 0;
         try{
-            while(retry < MAX_RETRY){
-                islock = lock.tryLock(1, TimeUnit.SECONDS);
-                if(islock){
-                    break;
-                }
-                retry++;
-                log.warn("抢锁失败，准备重试");
-            }
+            json = stringRedisTemplate.opsForValue().get(key);
+            islock = lock.tryLock(3, TimeUnit.SECONDS);
             if(!islock){
+                Thread.sleep(50);
+
+                log.warn("抢锁失败");
                 return dbFallback.apply(id);
             }
-            json = stringRedisTemplate.opsForValue().get(key);
+
             if(StrUtil.isNotBlank(json)){
                 return JSONUtil.toBean(json,type);
             }
