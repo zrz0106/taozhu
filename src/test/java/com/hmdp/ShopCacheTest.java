@@ -24,6 +24,13 @@ public class ShopCacheTest {
     @Autowired
     private CacheClient cacheClient;
 
+
+    @Test
+    void warmUp() {
+        // expireSeconds 传正数 → 逻辑过期时间在未来 → 不会触发重建
+        shopService.saveShop2Redis(2L, 3600L);
+    }
+
     @Test
     public void testCacheAllShops() {
         // 1. 从数据库中查询所有店铺信息

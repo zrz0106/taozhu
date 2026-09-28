@@ -10,8 +10,8 @@
           prefetch: 10
       host: localhost
       port: 5672
-      username: guest
-      password: guest
+      username: admin
+      password: admin123
     application:
       name: hmdp
     datasource:

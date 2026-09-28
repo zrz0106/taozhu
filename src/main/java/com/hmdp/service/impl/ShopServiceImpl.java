@@ -44,7 +44,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
     @Override
     public Result queryById(Long id) {
-        // 用逻辑过期解决缓存击穿
+
         Shop shop = clientClient.
                 queryWithLogicalExpire(CACHE_SHOP_KEY, id, Shop.class, this::getById, CACHE_SHOP_TTL, TimeUnit.MINUTES);
         if (shop == null) {
@@ -52,40 +52,30 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         }
         return Result.ok(shop);
     }
-    public Result queryById2(Long id){
+
+    public Result queryById2(Long id) {
         String shopjson = stringRedisTemplate.opsForValue().get(CACHE_SHOP_KEY + id);
-        if(StrUtil.isBlank(shopjson)){
-            return Result.ok(JSONUtil.toBean(shopjson,Shop.class));
+        if (StrUtil.isBlank(shopjson)) {
+            return Result.ok(JSONUtil.toBean(shopjson, Shop.class));
         }
         Shop shop = getById(id);
-        if (shopjson == null){
+        if (shopjson == null) {
             return Result.fail("店铺信息不存在");
         }
-        if(shop == null){
-            stringRedisTemplate.opsForValue().set(CACHE_SHOP_KEY + id,"",2,TimeUnit.MINUTES);
+        if (shop == null) {
+            stringRedisTemplate.opsForValue().set(CACHE_SHOP_KEY + id, "", 2, TimeUnit.MINUTES);
             return Result.fail("店铺信息不存在");
         }
-        stringRedisTemplate.opsForValue().set(CACHE_SHOP_KEY + id,JSONUtil.toJsonStr(shop),CACHE_SHOP_TTL, TimeUnit.MINUTES);
+        stringRedisTemplate.opsForValue().set(CACHE_SHOP_KEY + id, JSONUtil.toJsonStr(shop), CACHE_SHOP_TTL, TimeUnit.MINUTES);
         return Result.ok(shop);
     }
 
-
-    public void saveShop2Redis(Long id, Long expireSeconds) {
-        // 1.查询店铺数据
-        Shop shop = getById(id);
-        // 2.封装成逻辑过期
-        RedisData redisData = new RedisData();
-        redisData.setData(shop);
-        redisData.setExpireTime(LocalDateTime.now().plusSeconds(expireSeconds));
-        // 3.写入Redis
-        stringRedisTemplate.opsForValue().set(CACHE_SHOP_KEY + id, JSONUtil.toJsonStr(redisData));
-    }
 
     @Override
     @Transactional
     public Result update(Shop shop) {
         Long id = shop.getId();
-        if(id == null){
+        if (id == null) {
             return Result.fail("id不能为空");
         }
         updateById(shop);
@@ -154,4 +144,20 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         // 6.返回
         return Result.ok(shops);
     }
+
+    @Override
+    public Result saveShop2Redis(long id, long expireSeconds) {
+
+        // 1.查询店铺数据
+        Shop shop = getById(id);
+        // 2.封装成逻辑过期
+        RedisData redisData = new RedisData();
+        redisData.setData(shop);
+        redisData.setExpireTime(LocalDateTime.now().plusSeconds(expireSeconds));
+        // 3.写入Redis
+        stringRedisTemplate.opsForValue().set(CACHE_SHOP_KEY + id, JSONUtil.toJsonStr(redisData));
+        return Result.ok();
+    }
+
+
 }
