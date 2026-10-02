@@ -4,7 +4,7 @@
     rabbitmq:
       listener:
         simple:
-          auto-startup: false
+          auto-startup: true
           acknowledge-mode: manual
           concurrency: 5
           prefetch: 10

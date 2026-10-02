@@ -49,52 +49,52 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
 
 
-    @Transactional
-    public Result seckillvoucher(Long voucherId){
-        //查询优惠券
-        SeckillVoucher voucher = seckillVoucherService.getById(voucherId);
-        //判断秒杀活动是否开始
-        LocalDateTime beginTime = voucher.getBeginTime();
-        if(beginTime.isAfter(LocalDateTime.now())){
-            //尚未开始
-            return Result.fail("秒杀未开始");
-        }
-        //判断秒杀是否结束
-        LocalDateTime now = LocalDateTime.now();
-        if(now.isAfter(LocalDateTime.now())){
-            return Result.fail("秒杀已经结束");
-        }
-        //判断库存是否充足
-        Integer stock = voucher.getStock();
-        if(stock < 1){
-            return Result.fail("库存不足");
-        }
-        //扣减库存
-        boolean success = seckillVoucherService.update()
-                .setSql("stock = stock - 1")
-                .eq("voucher_id",voucherId).gt("stock",0)
-                .update();
-        if(!success){
-            return Result.fail("扣减库存失败");
-        }
-        Long userid = UserHolder.getUser().getId();
-        //查询订单
-        Integer count = query().eq("user_id", userid).eq("voucher_id", voucherId).count();
-        //判断订单是否存在
-        if(count > 0){
-            return Result.fail("已经买过一次了");
-        }
-        //创建订单
-        VoucherOrder voucherOrder = new VoucherOrder();
-        //返回订单ID
-        Long orderid = redisIdWorker.nextId("order");
-        voucherOrder.setId(orderid);
-
-        voucherOrder.setUserId(userid);
-        voucherOrder.setVoucherId(voucherId);
-        save(voucherOrder);
-        return  Result.ok(voucherId);
-    }
+//    @Transactional
+//    public Result seckillvoucher(Long voucherId){
+//        //查询优惠券
+//        SeckillVoucher voucher = seckillVoucherService.getById(voucherId);
+//        //判断秒杀活动是否开始
+//        LocalDateTime beginTime = voucher.getBeginTime();
+//        if(beginTime.isAfter(LocalDateTime.now())){
+//            //尚未开始
+//            return Result.fail("秒杀未开始");
+//        }
+//        //判断秒杀是否结束
+//        LocalDateTime now = LocalDateTime.now();
+//        if(now.isAfter(LocalDateTime.now())){
+//            return Result.fail("秒杀已经结束");
+//        }
+//        //判断库存是否充足
+//        Integer stock = voucher.getStock();
+//        if(stock < 1){
+//            return Result.fail("库存不足");
+//        }
+//        //扣减库存
+//        boolean success = seckillVoucherService.update()
+//                .setSql("stock = stock - 1")
+//                .eq("voucher_id",voucherId).gt("stock",0)
+//                .update();
+//        if(!success){
+//            return Result.fail("扣减库存失败");
+//        }
+//        Long userid = UserHolder.getUser().getId();
+//        //查询订单
+//        Integer count = query().eq("user_id", userid).eq("voucher_id", voucherId).count();
+//        //判断订单是否存在
+//        if(count > 0){
+//            return Result.fail("已经买过一次了");
+//        }
+//        //创建订单
+//        VoucherOrder voucherOrder = new VoucherOrder();
+//        //返回订单ID
+//        Long orderid = redisIdWorker.nextId("order");
+//        voucherOrder.setId(orderid);
+//
+//        voucherOrder.setUserId(userid);
+//        voucherOrder.setVoucherId(voucherId);
+//        save(voucherOrder);
+//        return  Result.ok(voucherId);
+//    }
 
 
 
@@ -109,7 +109,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         SECKILL_SCRIPT.setLocation(new ClassPathResource("seckill.lua"));
         SECKILL_SCRIPT.setResultType(Long.class);
     }
-
+//消息发送失败回滚
     private static final DefaultRedisScript<Long> ROLLBACK_SCRIPT;
     static {
         ROLLBACK_SCRIPT = new DefaultRedisScript<>();
@@ -165,59 +165,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         order.setId(orderId);
         order.setVoucherId(voucherId);
         order.setUserId(userId);
-        try {
-            rabbitTemplate.convertAndSend(QueueConfig.X_EXCHANGE, QueueConfig.QUEUE_A_BINDING_KEY, order);
-        }catch (Exception e) {
-            log.error("发送 RabbitMQ 消息失败，订单ID: {}", orderId, e);
-            stringRedisTemplate.execute(ROLLBACK_SCRIPT, Collections.emptyList(),
-                    voucherId.toString(), userId.toString());
 
-            return Result.fail("系统繁忙，请稍后重试");
-        }
         return Result.ok(orderId);
     }
-
-//        Result timeCheck = checkTimeWindow(voucherId);
-//        if (timeCheck != null) {
-//            return timeCheck;
-//        }
-//        // 获取用户id
-//        Long userId = UserHolder.getUser().getId();
-//        // 获取订单id
-//        long orderId = redisIdWorker.nextId("order");
-//        // 1.执行lua脚本
-//        Long result = stringRedisTemplate.execute(
-//                SECKILL_SCRIPT,
-//                Collections.emptyList(),
-//                voucherId.toString(), userId.toString(), String.valueOf(orderId)
-//        );
-//        // 2.判断结果是否为0
-//        int r = result == null ? -1 : result.intValue();
-//        if (r != 0) {
-//            // 2.1.不为0，代表没有购买资格
-//            if (r == 1) {
-//                return Result.fail("库存不足");
-//            }
-//            if (r == 2) {
-//                return Result.fail("不能重复下单");
-//            }
-//            return Result.fail("秒杀失败");
-//        }
-//
-//        // 3.异步下单：发消息给 RabbitMQ（由统一 MessageConverter 序列化为 JSON）
-//        VoucherOrder order = new VoucherOrder();
-//        order.setId(orderId);
-//        order.setUserId(userId);
-//        order.setVoucherId(voucherId);
-//        try {
-//            rabbitTemplate.convertAndSend(c;
-//        } catch (Exception e) {
-//            log.error("发送 RabbitMQ 消息失败，订单ID: {}", orderId, e);
-//            throw new RuntimeException("发送消息失败");
-//        }
-//        // 4.返回订单号给前端（实际下单异步处理）
-//        return Result.ok(orderId);
-
 
     /**
      * 校验秒杀是否在有效时间窗内。
